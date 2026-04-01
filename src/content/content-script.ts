@@ -258,17 +258,19 @@ function getIcon(type: ClassroomItem["type"]): string {
 function highlight(text: string, query: string): string {
   if (!query) return text;
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return text.replace(new RegExp(`(${escaped})`, "gi"), '<span class="match">$1</span>');
+  return text.replace(
+    new RegExp(`(${escaped})`, "gi"),
+    '<span class="match">$1</span>',
+  );
 }
 
-function renderResults(query: string): void {
+async function renderResults(query: string): Promise<void> {
   if (!shadowRoot) return;
 
   const resultsEl = shadowRoot.getElementById("results")!;
   const countEl = shadowRoot.getElementById("result-count")!;
-  const data: ClassroomItem[] = JSON.parse(
-    localStorage.getItem("gcs-index") || "[]"
-  );
+  const stored = await chrome.storage.local.get("gcs-index");
+  const data: ClassroomItem[] = JSON.parse(stored["gcs-index"] || "[]");
 
   if (!data.length) {
     resultsEl.innerHTML = `<div id="loading">No data yet — index is building...</div>`;
@@ -292,13 +294,15 @@ function renderResults(query: string): void {
     current = data;
 
     let html = "";
-    (["Class", "Assignment", "Material", "Announcement"] as const).forEach((t) => {
-      if (!byType[t]?.length) return;
-      html += `<div class="section-label">${t}s</div>`;
-      byType[t].slice(0, 4).forEach((item) => {
-        html += itemHTML(item, query);
-      });
-    });
+    (["Class", "Assignment", "Material", "Announcement"] as const).forEach(
+      (t) => {
+        if (!byType[t]?.length) return;
+        html += `<div class="section-label">${t}s</div>`;
+        byType[t].slice(0, 4).forEach((item) => {
+          html += itemHTML(item, query);
+        });
+      },
+    );
 
     resultsEl.innerHTML = html;
     countEl.textContent = `${data.length} items`;
@@ -421,21 +425,25 @@ function closePalette(): void {
 
 // ─── Keyboard shortcut ────────────────────────────────────────────────────────
 
-document.addEventListener("keydown", (e: KeyboardEvent) => {
-  const isMac = navigator.platform.toUpperCase().includes("MAC");
-  const mod = isMac ? e.metaKey : e.ctrlKey;
+document.addEventListener(
+  "keydown",
+  (e: KeyboardEvent) => {
+    const isMac = navigator.platform.toUpperCase().includes("MAC");
+    const mod = isMac ? e.metaKey : e.ctrlKey;
 
-  if (mod && e.key.toLowerCase() === "k") {
-    e.preventDefault();
-    e.stopPropagation();
-    paletteRoot ? closePalette() : openPalette();
-    return;
-  }
+    if (mod && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      e.stopPropagation();
+      paletteRoot ? closePalette() : openPalette();
+      return;
+    }
 
-  if (e.key === "Escape" && paletteRoot) {
-    closePalette();
-  }
-}, true);
+    if (e.key === "Escape" && paletteRoot) {
+      closePalette();
+    }
+  },
+  true,
+);
 
 // ─── Message from service worker ──────────────────────────────────────────────
 
