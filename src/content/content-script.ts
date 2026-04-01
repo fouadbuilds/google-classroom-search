@@ -16,7 +16,6 @@ let fuseInstance: Fuse<ClassroomItem> | null = null;
 let activeIdx = 0;
 let current: ClassroomItem[] = [];
 
-
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 async function fetchAndStoreIndex(): Promise<void> {
@@ -26,8 +25,10 @@ async function fetchAndStoreIndex(): Promise<void> {
     const payload = await response.json();
 
     // support both {items, email} shape and plain array (legacy)
-    const items: ClassroomItem[] = Array.isArray(payload) ? payload : payload.items;
-    const email: string = Array.isArray(payload) ? "" : (payload.email || "");
+    const items: ClassroomItem[] = Array.isArray(payload)
+      ? payload
+      : payload.items;
+    const email: string = Array.isArray(payload) ? "" : payload.email || "";
 
     if (!Array.isArray(items)) throw new Error("Not an array");
 
@@ -44,7 +45,6 @@ async function fetchAndStoreIndex(): Promise<void> {
     throw err;
   }
 }
-
 
 // ─── Prefix parser ────────────────────────────────────────────────────────────
 // > assignment / > material / > announcement  → filter by type
@@ -66,7 +66,10 @@ function parseQuery(raw: string): ParsedQuery {
   return { mode: "fuzzy", query: raw };
 }
 
-function applyQuery(data: ClassroomItem[], parsed: ParsedQuery): ClassroomItem[] {
+function applyQuery(
+  data: ClassroomItem[],
+  parsed: ParsedQuery,
+): ClassroomItem[] {
   if (parsed.mode === "type") {
     const map: Record<string, string> = {
       assignment: "Assignment",
@@ -77,12 +80,12 @@ function applyQuery(data: ClassroomItem[], parsed: ParsedQuery): ClassroomItem[]
       announcements: "Announcement",
     };
     const target = map[parsed.filter] || parsed.filter;
-    return data.filter((d) => d.type.toLowerCase().includes(target.toLowerCase()));
+    return data.filter((d) =>
+      d.type.toLowerCase().includes(target.toLowerCase()),
+    );
   }
   if (parsed.mode === "course") {
-    return data.filter((d) =>
-      d.course.toLowerCase().includes(parsed.filter)
-    );
+    return data.filter((d) => d.course.toLowerCase().includes(parsed.filter));
   }
   // fuzzy
   if (!parsed.query) return data;
@@ -96,7 +99,6 @@ function applyQuery(data: ClassroomItem[], parsed: ParsedQuery): ClassroomItem[]
   }
   return fuseInstance.search(parsed.query).map((r) => r.item);
 }
-
 
 // ─── Palette HTML ─────────────────────────────────────────────────────────────
 
@@ -233,7 +235,6 @@ function getPaletteHTML(): string {
   `;
 }
 
-
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
 function getIcon(type: ClassroomItem["type"]): string {
@@ -249,13 +250,15 @@ function getIcon(type: ClassroomItem["type"]): string {
   }
 }
 
-
 // ─── Render ───────────────────────────────────────────────────────────────────
 
 function highlight(text: string, query: string): string {
   if (!query) return text;
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return text.replace(new RegExp(`(${escaped})`, "gi"), '<span class="match">$1</span>');
+  return text.replace(
+    new RegExp(`(${escaped})`, "gi"),
+    '<span class="match">$1</span>',
+  );
 }
 
 async function renderResults(rawQuery: string): Promise<void> {
@@ -288,14 +291,18 @@ async function renderResults(rawQuery: string): Promise<void> {
   if (!rawQuery) {
     // grouped view
     const byType: Record<string, ClassroomItem[]> = {};
-    data.forEach((d) => { (byType[d.type] = byType[d.type] || []).push(d); });
+    data.forEach((d) => {
+      (byType[d.type] = byType[d.type] || []).push(d);
+    });
     current = data;
 
     let html = "";
     (["Assignment", "Material", "Announcement"] as const).forEach((t) => {
       if (!byType[t]?.length) return;
       html += `<div class="section-label">${t}s</div>`;
-      byType[t].slice(0, 4).forEach((item) => { html += itemHTML(item, ""); });
+      byType[t].slice(0, 4).forEach((item) => {
+        html += itemHTML(item, "");
+      });
     });
 
     resultsEl.innerHTML = html;
@@ -339,8 +346,13 @@ function setActive(): void {
 function attachItemListeners(): void {
   if (!shadowRoot) return;
   shadowRoot.querySelectorAll<HTMLElement>(".result-item").forEach((el, i) => {
-    el.addEventListener("mouseenter", () => { activeIdx = i; setActive(); });
-    el.addEventListener("click", () => { openActive(); });
+    el.addEventListener("mouseenter", () => {
+      activeIdx = i;
+      setActive();
+    });
+    el.addEventListener("click", () => {
+      openActive();
+    });
   });
 }
 
@@ -359,7 +371,6 @@ function openActive(): void {
     });
   }
 }
-
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -399,9 +410,19 @@ function openPalette(): void {
 
   shadowRoot.addEventListener("keydown", (e: Event) => {
     const ke = e as KeyboardEvent;
-    if (ke.key === "ArrowDown") { ke.preventDefault(); activeIdx = Math.min(activeIdx + 1, current.length - 1); setActive(); }
-    if (ke.key === "ArrowUp")   { ke.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); setActive(); }
-    if (ke.key === "Enter")     { openActive(); }
+    if (ke.key === "ArrowDown") {
+      ke.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, current.length - 1);
+      setActive();
+    }
+    if (ke.key === "ArrowUp") {
+      ke.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      setActive();
+    }
+    if (ke.key === "Enter") {
+      openActive();
+    }
   });
 
   renderResults("");
@@ -416,29 +437,31 @@ function closePalette(): void {
   activeIdx = 0;
 }
 
-
 // ─── Keyboard shortcut ────────────────────────────────────────────────────────
 
-document.addEventListener("keydown", (e: KeyboardEvent) => {
-  const isMac = navigator.platform.toUpperCase().includes("MAC");
-  const mod = isMac ? e.metaKey : e.ctrlKey;
-  if (mod && e.key.toLowerCase() === "k") {
-    e.preventDefault();
-    e.stopPropagation();
-    paletteRoot ? closePalette() : openPalette();
-    return;
-  }
-  if (e.key === "Escape" && paletteRoot) closePalette();
-}, true);
-
+document.addEventListener(
+  "keydown",
+  (e: KeyboardEvent) => {
+    const isMac = navigator.platform.toUpperCase().includes("MAC");
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    if (mod && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      e.stopPropagation();
+      paletteRoot ? closePalette() : openPalette();
+      return;
+    }
+    if (e.key === "Escape" && paletteRoot) closePalette();
+  },
+  true,
+);
 
 // ─── Messages ─────────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "ACTIVATE_SEARCH") paletteRoot ? closePalette() : openPalette();
+  if (message.type === "ACTIVATE_SEARCH")
+    paletteRoot ? closePalette() : openPalette();
   if (message.type === "FETCH_INDEX") fetchAndStoreIndex();
 });
-
 
 // ─── On page load ─────────────────────────────────────────────────────────────
 
