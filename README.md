@@ -1,48 +1,42 @@
 # classroom-search
 
-A Chrome extension that brings VS Code-style command palette search to Google Classroom. Hit `Cmd+K` / `Ctrl+K` on any Classroom page and search across all your assignments, materials, and announcements instantly.
-
-![palette](./icons/icon128.png)
+A Chrome extension that brings VS Code-style command palette search to Google Classroom. Hit `Cmd+K` / `Ctrl+K` on any Classroom page and instantly search across all your assignments, materials, and announcements.
 
 ## The problem
 
-Google Classroom has no search. If you need to find an assignment from three weeks ago, you scroll. If you have eight classes, you scroll through eight streams. It's 2026 and there's no `Ctrl+F` for your coursework.
+Google Classroom has no search. Finding an assignment from three weeks ago means scrolling through every class stream. With eight classes that's a lot of scrolling.
 
 ## The wall
 
 The obvious fix is the Google Classroom API. Fetch everything, index it, search it. Except:
 
-- The Google Cloud Console requires you to be 18+ to create a project and enable APIs
-- School-issued Google Workspace accounts have admin restrictions that block third-party API access
-- DOM scraping was a dead end — Classroom's UI is a React app with minified class names that change constantly
+- Google Cloud Console requires you to be 18+ to create a project
+- School-issued Google Workspace accounts have admin restrictions blocking third-party API access
+- DOM scraping was a dead end — Classroom's UI is a minified React app with class names that change constantly
 
 ## The workaround
 
-Google Classroom sends email notifications for every assignment, material, and announcement posted to your classes. Those emails go to your school Gmail. Gmail is accessible through Google Apps Script, which doesn't require a GCP project — it runs entirely within Google's ecosystem and is typically allowed even on school accounts.
+**Version 1** — Google Classroom sends email notifications for every post. Those land in school Gmail, which is accessible through Google Apps Script without needing a GCP project. The script parsed those notification emails to extract titles, course names, and links. It worked, but had a hard dependency on email history — delete your emails, lose your index.
 
-**Version 1** parsed those notification emails to extract titles, course names, and links. It worked, but had a hard dependency on email history — delete your emails, lose your index.
-
-**Version 2** (current) uses the Google Classroom API directly through Apps Script Services. In Apps Script you can add the Classroom API as a Service without touching the Cloud Console at all. No age wall, no admin restrictions, direct access to the actual data.
-
-The result: 661 items across 8 courses, full titles, real links, rebuilt every 30 minutes automatically.
+**Version 2 (current)** — Apps Script lets you add the Google Classroom API directly as a Service, no Cloud Console required. No age wall, no admin restrictions, direct access to live data. 661 items across 8 courses, full titles, real deep links, rebuilt every 30 minutes automatically.
 
 ## Architecture
 
 ```
 Chrome Extension (content script)
   │
-  │  Cmd+K → open palette
-  │  fetch on load if storage empty
+  │  Cmd+K / Ctrl+K → open palette
+  │  fetch on page load if storage empty
   │
   ▼
 chrome.storage.local
   │  gcs-index: ClassroomItem[]
-  │  gcs-email: string
+  │  gcs-last-updated: timestamp
   │
-  ▼ (every 30 mins via alarm → content script fetch)
+  ▼ (30 min alarm → content script fetch)
 Google Apps Script Web App
-  │  doGet() → returns cached JSON
-  │  rebuildCache() → runs on 30min trigger
+  │  doGet()       → returns cached JSON instantly
+  │  rebuildCache() → runs on 30 min trigger, hits API fresh
   │
   ▼
 Google Classroom API (via Apps Script Services)
@@ -54,16 +48,32 @@ Google Classroom API (via Apps Script Services)
 
 **Why fetch in the content script and not the service worker?**
 
-Chrome extension service workers can't bypass CORS on redirected responses. Apps Script URLs redirect through `script.googleusercontent.com` and the redirect strips CORS headers. Content scripts run in the page context of `classroom.google.com`, which doesn't have this restriction.
+Chrome extension service workers can't bypass CORS on redirected responses. Apps Script URLs redirect through `script.googleusercontent.com` which strips CORS headers. Content scripts run in the page context of `classroom.google.com` and don't have this restriction.
+
+**Why `authuser` from the URL and not stored email?**
+
+Classroom's URL always contains `/u/0/`, `/u/1/` etc. reflecting the active account. Reading it live means the correct account is always used regardless of which Google account is active — no storage, no permissions, no backend changes needed.
 
 ## Stack
 
 - TypeScript + Vite
-- Fuse.js (fuzzy search)
-- Google Apps Script (backend + Classroom API bridge)
-- Shadow DOM (palette isolation from Classroom's styles)
-- `chrome.storage.local` (index cache)
-- `chrome.alarms` (periodic refresh)
+- Fuse.js — fuzzy search
+- Google Apps Script — backend + Classroom API bridge
+- Shadow DOM — palette style isolation from Classroom's CSS
+- `chrome.storage.local` — index cache
+- `chrome.alarms` — periodic background refresh
+
+## Features
+
+- Fuzzy search across all assignments, materials, and announcements
+- Prefix commands:
+  - `> assignment` — filter by type
+  - `# global` — filter by course
+  - `# global berlin` — filter by course then search within
+- Keyboard navigation — `↑↓` to move, `↵` to open, `Esc` to close
+- Refresh button in palette footer
+- Account-aware links — always opens in your active Google account
+- Install toast — shows shortcut hint once on first install
 
 ## Setup
 
@@ -72,7 +82,7 @@ Chrome extension service workers can't bypass CORS on redirected responses. Apps
 1. Go to [script.google.com](https://script.google.com) and create a new project
 2. Click **Services (+)** → add **Google Classroom API**
 3. Paste the contents of `apps-script/classroom-search.gs`
-4. Run `rebuildCache` once manually to warm the cache
+4. Run `rebuildCache` manually once to warm the cache
 5. **Deploy → New deployment → Web App**
    - Execute as: **Me**
    - Who has access: **Anyone**
@@ -85,6 +95,7 @@ pnpm install
 ```
 
 Set your Apps Script URL in `src/content/content-script.ts`:
+
 ```typescript
 const APPS_SCRIPT_URL = "your_deployment_url_here";
 ```
@@ -97,23 +108,22 @@ Load `dist/` as an unpacked extension in `chrome://extensions`.
 
 ## Usage
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd+K` / `Ctrl+K` | Open / close palette |
-| `↑↓` | Navigate results |
-| `↵` | Open item |
-| `Esc` | Close palette |
-| `> assignment` | Filter by type |
-| `# course name` | Filter by course |
+| Input | Result |
+|-------|--------|
+| `berlin wall` | Fuzzy search everything |
+| `> assignment` | All assignments |
+| `> assignment cuba` | Assignments matching "cuba" |
+| `# global` | Everything in Global History |
+| `# global berlin` | Global History items matching "berlin" |
 
 ## Limitations
 
 - Only indexes **active** courses — archived classes won't appear
-- Announcement "titles" are the first 80 characters of the post text since the Classroom API has no title field for announcements
-- Requires your school account to allow Google Apps Script execution
+- Announcement "titles" are the first 80 characters of post text — the Classroom API has no title field for announcements
+- Requires your school to allow Google Apps Script execution
 
 ## What I learned
 
-The most interesting problems weren't the code — they were the constraints. Being locked out of GCP forced a more creative solution that ended up being simpler and more appropriate for the use case. Apps Script with Classroom Services requires no infrastructure, no billing, no OAuth setup beyond what Google handles automatically. The "limitation" produced a better architecture than the obvious path would have.
+The most interesting problems weren't the code — they were the constraints. Being locked out of GCP forced a more creative solution that ended up being simpler and more appropriate for the use case. Apps Script with Classroom Services requires no infrastructure, no billing, no OAuth setup beyond what Google handles automatically.
 
-CORS across service workers, Shadow DOM for style isolation, Chrome extension messaging patterns, and the difference between what an API exposes vs. what its UI shows — all came from building this in a single day.
+CORS across service workers, Shadow DOM for style isolation, Chrome extension messaging patterns, account-aware deep linking, and the difference between what an API exposes vs what its UI shows — all came from building this in a single day.

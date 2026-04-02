@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Google Classroom Search",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "A Chrome extension for Google Classroom with search functionality",
   "permissions": ["activeTab", "storage", "identity", "alarms"],
   "host_permissions": ["*://classroom.google.com/*", "https://script.google.com/*", "https://script.googleusercontent.com/*"],
