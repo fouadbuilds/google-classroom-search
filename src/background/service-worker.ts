@@ -5,16 +5,19 @@ const REFRESH_MINUTES = 30;
 // Service worker only manages alarms and forwards messages.
 // Fetching is done by the content script to avoid CORS issues.
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   console.log("[GCS] Extension installed");
   chrome.alarms.create(ALARM_NAME, { periodInMinutes: REFRESH_MINUTES });
 
-  // Tell the active classroom tab to fetch the index immediately
-  chrome.tabs.query({ url: "*://classroom.google.com/*" }, (tabs) => {
-    tabs.forEach((tab) => {
-      if (tab.id) chrome.tabs.sendMessage(tab.id, { type: "FETCH_INDEX" });
-    });
-  });
+  if (details.reason === "install") {
+    setTimeout(() => {
+      chrome.tabs.query({ url: "*://classroom.google.com/*" }, (tabs) => {
+        tabs.forEach((tab) => {
+          if (tab.id) chrome.tabs.sendMessage(tab.id, { type: "SHOW_TOAST" });
+        });
+      });
+    }, 1500);
+  }
 });
 
 chrome.runtime.onStartup.addListener(async () => {

@@ -449,6 +449,74 @@ function closePalette(): void {
   activeIdx = 0;
 }
 
+// ─── Trigger button ─────────────────────────────────────────────────────────────
+
+function injectTriggerButton(): void {
+  if (document.getElementById("gcs-trigger")) return;
+
+  const isMac = navigator.platform.toUpperCase().includes("MAC");
+  const shortcut = isMac ? "⌘K" : "Ctrl+K";
+
+  const btn = document.createElement("div");
+  btn.id = "gcs-trigger";
+  btn.innerHTML = `
+    <style>
+      #gcs-trigger {
+        position: fixed;
+        bottom: 24px;
+        left: 24px;
+        z-index: 2147483646;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #242424;
+        border: 1px solid #333;
+        border-radius: 20px;
+        padding: 8px 14px;
+        cursor: pointer;
+        font-family: 'Google Sans', sans-serif;
+        font-size: 13px;
+        color: #aaa;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+        user-select: none;
+      }
+      #gcs-trigger:hover {
+        background: #2e2e2e;
+        border-color: #555;
+        color: #e8e8e8;
+      }
+      #gcs-trigger .gcs-kbd {
+        background: #333;
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 11px;
+        color: #666;
+        font-family: 'Geist Mono', monospace;
+      }
+      #gcs-trigger svg {
+        opacity: 0.5;
+      }
+      #gcs-trigger:hover svg {
+        opacity: 0.8;
+      }
+    </style>
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+      <circle cx="6.5" cy="6.5" r="4.5" stroke="#aaa" stroke-width="1.5"/>
+      <path d="M10 10l3.5 3.5" stroke="#aaa" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    Search Classroom
+    <span class="gcs-kbd">${shortcut}</span>
+  `;
+
+  btn.addEventListener("click", () => {
+    paletteRoot ? closePalette() : openPalette();
+  });
+
+  document.body.appendChild(btn);
+}
+
 // ─── Keyboard shortcut ────────────────────────────────────────────────────────
 
 document.addEventListener(
@@ -480,3 +548,5 @@ chrome.runtime.onMessage.addListener((message) => {
 chrome.storage.local.get("gcs-index").then((stored) => {
   if (!stored["gcs-index"]) fetchAndStoreIndex();
 });
+
+injectTriggerButton();
