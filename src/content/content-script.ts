@@ -119,7 +119,7 @@ function applyQuery(data: ClassroomItem[], parsed: ParsedQuery): ClassroomItem[]
 function getPaletteHTML(): string {
   return `
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&family=Google+Sans+Mono:wght@400;500&display=swap');
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       #overlay {
         position: fixed; inset: 0; background: rgba(0,0,0,0.55);
@@ -449,72 +449,85 @@ function closePalette(): void {
   activeIdx = 0;
 }
 
-// ─── Trigger button ─────────────────────────────────────────────────────────────
+// ─── Toast ─────────────────────────────────────────────────────────────────────
 
-function injectTriggerButton(): void {
-  if (document.getElementById("gcs-trigger")) return;
+function showToast(): void {
+  if (document.getElementById("gcs-toast")) return;
 
   const isMac = navigator.platform.toUpperCase().includes("MAC");
   const shortcut = isMac ? "⌘K" : "Ctrl+K";
 
-  const btn = document.createElement("div");
-  btn.id = "gcs-trigger";
-  btn.innerHTML = `
+  const toast = document.createElement("div");
+  toast.id = "gcs-toast";
+  toast.innerHTML = `
     <style>
-      #gcs-trigger {
+      #gcs-toast {
         position: fixed;
-        bottom: 24px;
-        left: 24px;
+        top: 24px;
+        right: 24px;
         z-index: 2147483646;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
         background: #242424;
         border: 1px solid #333;
-        border-radius: 20px;
-        padding: 8px 14px;
-        cursor: pointer;
+        border-radius: 10px;
+        padding: 12px 16px;
         font-family: 'Google Sans', sans-serif;
         font-size: 13px;
-        color: #aaa;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-        transition: background 0.15s, color 0.15s, border-color 0.15s;
-        user-select: none;
+        color: #ccc;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+        animation: gcs-slide-in 0.2s cubic-bezier(0.22,1,0.36,1);
       }
-      #gcs-trigger:hover {
-        background: #2e2e2e;
-        border-color: #555;
-        color: #e8e8e8;
+      @keyframes gcs-slide-in {
+        from { opacity: 0; transform: translateY(-8px); }
+        to   { opacity: 1; transform: translateY(0); }
       }
-      #gcs-trigger .gcs-kbd {
+      #gcs-toast.gcs-hiding {
+        animation: gcs-slide-out 0.2s ease-in forwards;
+      }
+      @keyframes gcs-slide-out {
+        to { opacity: 0; transform: translateY(-8px); }
+      }
+      #gcs-toast .gcs-toast-icon { opacity: 0.7; }
+      #gcs-toast .gcs-toast-text { display: flex; flex-direction: column; gap: 2px; }
+      #gcs-toast .gcs-toast-title { color: #e8e8e8; font-weight: 500; font-size: 13px; }
+      #gcs-toast .gcs-toast-sub { color: #666; font-size: 11.5px; }
+      #gcs-toast .gcs-kbd {
         background: #333;
         border: 1px solid #444;
         border-radius: 4px;
-        padding: 1px 5px;
+        padding: 1px 6px;
         font-size: 11px;
-        color: #666;
+        color: #888;
         font-family: 'Geist Mono', monospace;
       }
-      #gcs-trigger svg {
-        opacity: 0.5;
+      #gcs-toast .gcs-dismiss {
+        background: none; border: none; color: #444;
+        cursor: pointer; font-size: 16px; padding: 0 0 0 4px;
+        line-height: 1; transition: color 0.1s;
       }
-      #gcs-trigger:hover svg {
-        opacity: 0.8;
-      }
+      #gcs-toast .gcs-dismiss:hover { color: #888; }
     </style>
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+    <svg class="gcs-toast-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
       <circle cx="6.5" cy="6.5" r="4.5" stroke="#aaa" stroke-width="1.5"/>
       <path d="M10 10l3.5 3.5" stroke="#aaa" stroke-width="1.5" stroke-linecap="round"/>
     </svg>
-    Search Classroom
-    <span class="gcs-kbd">${shortcut}</span>
+    <div class="gcs-toast-text">
+      <span class="gcs-toast-title">Classroom Search ready</span>
+      <span class="gcs-toast-sub">Press <span class="gcs-kbd">${shortcut}</span> to search</span>
+    </div>
+    <button class="gcs-dismiss">×</button>
   `;
 
-  btn.addEventListener("click", () => {
-    paletteRoot ? closePalette() : openPalette();
-  });
+  const dismiss = () => {
+    toast.classList.add("gcs-hiding");
+    toast.addEventListener("animationend", () => toast.remove(), { once: true });
+  };
 
-  document.body.appendChild(btn);
+  toast.querySelector(".gcs-dismiss")!.addEventListener("click", dismiss);
+  setTimeout(dismiss, 5000);
+  document.body.appendChild(toast);
 }
 
 // ─── Keyboard shortcut ────────────────────────────────────────────────────────
@@ -538,9 +551,9 @@ document.addEventListener(
 // ─── Messages ─────────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "ACTIVATE_SEARCH")
-    paletteRoot ? closePalette() : openPalette();
+  if (message.type === "ACTIVATE_SEARCH") paletteRoot ? closePalette() : openPalette();
   if (message.type === "FETCH_INDEX") fetchAndStoreIndex();
+  if (message.type === "SHOW_TOAST") showToast();
 });
 
 // ─── On page load ─────────────────────────────────────────────────────────────
@@ -548,5 +561,3 @@ chrome.runtime.onMessage.addListener((message) => {
 chrome.storage.local.get("gcs-index").then((stored) => {
   if (!stored["gcs-index"]) fetchAndStoreIndex();
 });
-
-injectTriggerButton();
