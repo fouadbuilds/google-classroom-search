@@ -53,41 +53,55 @@ async function fetchAndStoreIndex(): Promise<void> {
 
 type ParsedQuery =
   | { mode: "fuzzy"; query: string }
-  | { mode: "type"; filter: string }
-  | { mode: "course"; filter: string };
+  | { mode: "type"; filter: string; subquery: string }
+  | { mode: "course"; filter: string; subquery: string };
 
 function parseQuery(raw: string): ParsedQuery {
   if (raw.startsWith(">")) {
-    return { mode: "type", filter: raw.slice(1).trim().toLowerCase() };
+    const rest = raw.slice(1).trim();
+    const parts = rest.split(" ");
+    const filter = parts[0] || "";
+    const subquery = parts.slice(1).join(" ").trim();
+    return { mode: "type", filter: filter.toLowerCase(), subquery };
   }
   if (raw.startsWith("#")) {
-    return { mode: "course", filter: raw.slice(1).trim().toLowerCase() };
+    const rest = raw.slice(1).trim();
+    const spaceIdx = rest.search(/\s/);
+    const filter = spaceIdx === -1 ? rest : rest.slice(0, spaceIdx);
+    const subquery = spaceIdx === -1 ? "" : rest.slice(spaceIdx + 1).trim();
+    return { mode: "course", filter: filter.toLowerCase(), subquery };
   }
   return { mode: "fuzzy", query: raw };
 }
 
-function applyQuery(
-  data: ClassroomItem[],
-  parsed: ParsedQuery,
-): ClassroomItem[] {
+function applyQuery(data: ClassroomItem[], parsed: ParsedQuery): ClassroomItem[] {
   if (parsed.mode === "type") {
     const map: Record<string, string> = {
-      assignment: "Assignment",
-      assignments: "Assignment",
-      material: "Material",
-      materials: "Material",
-      announcement: "Announcement",
-      announcements: "Announcement",
+      assignment: "Assignment", assignments: "Assignment",
+      material: "Material", materials: "Material",
+      announcement: "Announcement", announcements: "Announcement",
     };
     const target = map[parsed.filter] || parsed.filter;
-    return data.filter((d) =>
-      d.type.toLowerCase().includes(target.toLowerCase()),
+    let filtered = data.filter((d) =>
+      d.type.toLowerCase().includes(target.toLowerCase())
     );
+    if (parsed.subquery) {
+      const f = new Fuse(filtered, { keys: ["title", "course"], threshold: 0.35 });
+      filtered = f.search(parsed.subquery).map((r) => r.item);
+    }
+    return filtered;
   }
   if (parsed.mode === "course") {
-    return data.filter((d) => d.course.toLowerCase().includes(parsed.filter));
+    const normalized = parsed.filter.replace(/\s+/g, "").toLowerCase();
+    let filtered = data.filter((d) =>
+      d.course.replace(/\s+/g, "").toLowerCase().includes(normalized)
+    );
+    if (parsed.subquery) {
+      const f = new Fuse(filtered, { keys: ["title", "type"], threshold: 0.35 });
+      filtered = f.search(parsed.subquery).map((r) => r.item);
+    }
+    return filtered;
   }
-  // fuzzy
   if (!parsed.query) return data;
   if (!fuseInstance) {
     fuseInstance = new Fuse(data, {
@@ -361,14 +375,12 @@ function openActive(): void {
   const items = shadowRoot.querySelectorAll<HTMLElement>(".result-item");
   const target = items[activeIdx];
   if (target?.dataset.link) {
-    chrome.storage.local.get("gcs-email").then((stored) => {
-      const email = stored["gcs-email"] || "";
-      const link = email
-        ? `${target.dataset.link}?authuser=${encodeURIComponent(email)}`
-        : target.dataset.link!;
-      window.location.href = link;
-      closePalette();
-    });
+    // derive account index from current URL (/u/0/, /u/1/, etc.)
+    const match = window.location.href.match(/\/u\/(\d+)\//);
+    const accountIndex = match ? match[1] : "0";
+    const link = `${target.dataset.link}?authuser=${accountIndex}`;
+    window.location.href = link;
+    closePalette();
   }
 }
 
