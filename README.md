@@ -1,10 +1,10 @@
-# classroom-search
+# Google Classroom-search
 
-A Chrome extension that brings VS Code-style command palette search to Google Classroom. Hit `Cmd+K` / `Ctrl+K` on any Classroom page and instantly search across all your assignments, materials, and announcements.
+A Chrome extension that brings command palette search to Google Classroom. Hit `Cmd+K` / `Ctrl+K` on any Classroom page and instantly search across all your assignments, materials, and announcements.
 
 ## The problem
 
-Google Classroom has no search. Finding an assignment from three weeks ago means scrolling through every class stream. With eight classes that's a lot of scrolling.
+Google Classroom has no search. Finding an assignment from three weeks ago means scrolling through the entire class stream. Hours Wasted when studying
 
 ## The wall
 
@@ -12,7 +12,7 @@ The obvious fix is the Google Classroom API. Fetch everything, index it, search 
 
 - Google Cloud Console requires you to be 18+ to create a project
 - School-issued Google Workspace accounts have admin restrictions blocking third-party API access
-- DOM scraping was a dead end — Classroom's UI is a minified React app with class names that change constantly
+- DOM scraping was a dead end — Classroom's UI is a minified app with class names that change constantly
 
 ## The workaround
 
@@ -81,7 +81,7 @@ Classroom's URL always contains `/u/0/`, `/u/1/` etc. reflecting the active acco
 
 1. Go to [script.google.com](https://script.google.com) and create a new project
 2. Click **Services (+)** → add **Google Classroom API**
-3. Paste the contents of `apps-script/classroom-search.gs`
+3. Paste the contents of `scripts/appscript.js`
 4. Run `rebuildCache` manually once to warm the cache
 5. **Deploy → New deployment → Web App**
    - Execute as: **Me**
@@ -120,10 +120,11 @@ Load `dist/` as an unpacked extension in `chrome://extensions`.
 
 - Only indexes **active** courses — archived classes won't appear
 - Announcement "titles" are the first 80 characters of post text — the Classroom API has no title field for announcements
-- Requires your school to allow Google Apps Script execution
 
-## What I learned
+
+## Thoughts
 
 The most interesting problems weren't the code — they were the constraints. Being locked out of GCP forced a more creative solution that ended up being simpler and more appropriate for the use case. Apps Script with Classroom Services requires no infrastructure, no billing, no OAuth setup beyond what Google handles automatically.
 
-CORS across service workers, Shadow DOM for style isolation, Chrome extension messaging patterns, account-aware deep linking, and the difference between what an API exposes vs what its UI shows — all came from building this in a single day.
+## Feedback
+Please give Feedback. Check my profile readme to email me
