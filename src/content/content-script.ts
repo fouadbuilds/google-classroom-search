@@ -1,7 +1,7 @@
 import Fuse from "fuse.js";
 
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbylS5uf1wNaFOIqMll0In2ulVvv4w5aSUnwGfz-vHc1pUZFNfo7JejqyhUVlXVFsqC4tQ/exec";
+  "your-appscript-deployment-url";
 
 export interface ClassroomItem {
   title: string;
