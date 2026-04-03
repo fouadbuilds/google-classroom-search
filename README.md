@@ -81,35 +81,68 @@ Classroom's URL always contains `/u/0/`, `/u/1/` etc. reflecting the active acco
 
 ## Setup
 
-### 1. Apps Script
+There are two parts: a small script that reads your Classroom data, and the extension itself. Both are free and take about 10 minutes.
 
-1. Go to [script.google.com](https://script.google.com) and create a new project
-2. Add a new project (name whatever you like)
-3. Click **Services (+)** → add **Google Classroom API**
-4. Paste the contents of `scripts/appscript.js`
-5. Run `rebuildCache` manually once to warm the cache
-6. **Deploy → New deployment → Web App**
-   - Execute as: **Me**
-   - Who has access: **Anyone**
-7. Copy the deployment URL
+### Part 1 — Apps Script (the data bridge)
 
-### 2. Extension
+This runs on Google's servers and reads your Classroom data. You only set this up once.
+
+1. Go to [script.google.com](https://script.google.com) and sign in with the **same Google account you use for Classroom**
+2. Click **New project** (top left)
+3. You'll see a code editor. Delete everything in it
+4. Open [`scripts/appscript.js`](./scripts/appscript.js) from this repo, copy all of it, and paste it into the editor
+5. Click the **+** next to "Services" in the left sidebar → find **Google Classroom API** in the list → click **Add**
+6. Click **Save** (the floppy disk icon or Ctrl+S)
+7. At the top, make sure the dropdown says **rebuildCache** → click **Run**
+   - A popup will ask for permissions — click "Review permissions", choose your account, then click "Allow"
+   - Wait about 15 seconds — you'll see "Cache rebuilt — X items" in the log at the bottom
+8. Click **Deploy → New deployment** (top right)
+   - Click the gear icon next to "Type" and select **Web App**
+   - Set **Execute as: Me**
+   - Set **Who has access: Anyone**
+   - Click **Deploy**
+9. Copy the URL it gives you — it looks like `https://script.google.com/macros/s/ABC.../exec`
+
+> ⚠️ Keep this URL private — anyone with it can read your Classroom index
+
+### Part 2 — The Extension
+
+**Option A — No coding (recommended for most people)**
+
+1. Download this repo as a ZIP — click the green **Code** button → **Download ZIP** → unzip it
+2. Open the unzipped folder, find `src/content/content-script.js` and open it in any text editor (Notepad on Windows, TextEdit on Mac)
+3. Find this line near the top:
+   ```
+   const APPS_SCRIPT_URL = "your_deployment_url_here";
+   ```
+   Replace `your_deployment_url_here` with the URL you copied in Part 1 (keep the quotes)
+4. Save the file
+5. Open Chrome and go to `chrome://extensions`
+6. Turn on **Developer mode** (toggle in the top right)
+7. Click **Load unpacked** → select the `dist/` folder inside the unzipped folder
+8. Go to [classroom.google.com](https://classroom.google.com) and press `Ctrl+K` (or `Cmd+K` on Mac)
+
+**Option B — With Node.js (for developers)**
 
 ```bash
-pnpm install #or download the repository
+pnpm install
 ```
 
 Set your Apps Script URL in `src/content/content-script.ts`:
 
 ```typescript
-const APPS_SCRIPT_URL = "your_deployment_url_here" //if your not using a package manager paste all you pasted in the respective files in the dist folder;
+const APPS_SCRIPT_URL = "your_deployment_url_here"
 ```
 
 ```bash
-pnpm build 
+pnpm build
 ```
 
 Load `dist/` as an unpacked extension in `chrome://extensions`.
+
+### Keeping your data fresh
+
+Your Classroom data updates automatically every 30 minutes. If you just submitted something and want it to appear immediately, open the palette and click the **refresh** button in the bottom right corner.
 
 ## Usage
 
