@@ -96,17 +96,17 @@ Classroom's URL always contains `/u/0/`, `/u/1/` etc. reflecting the active acco
 ### 2. Extension
 
 ```bash
-pnpm install #or download the file
+pnpm install #or download the repository
 ```
 
 Set your Apps Script URL in `src/content/content-script.ts`:
 
 ```typescript
-const APPS_SCRIPT_URL = "your_deployment_url_here";
+const APPS_SCRIPT_URL = "your_deployment_url_here" //if your not using a package manager paste all you pasted in the respective files in the dist folder;
 ```
 
 ```bash
-pnpm build #if your using a package manager then do the same in dist folder
+pnpm build 
 ```
 
 Load `dist/` as an unpacked extension in `chrome://extensions`.
@@ -115,11 +115,11 @@ Load `dist/` as an unpacked extension in `chrome://extensions`.
 
 | Input               | Result                                 |
 | ------------------- | -------------------------------------- |
-| `berlin wall`       | Fuzzy search everything                |
-| `> assignment`      | All assignments                        |
-| `> assignment cuba` | Assignments matching "cuba"            |
-| `# global`          | Everything in Global History           |
-| `# global berlin`   | Global History items matching "berlin" |
+| `Formula Sheet`       | Fuzzy search everything                |
+| `>assignment`      | All assignments                        |
+| `>assignment poetry` | Assignments matching "poetry"            |
+| `#history`          | Everything in history           |
+| `#biology cells`   | Biology items matching "cell" |
 
 ## Limitations
 
