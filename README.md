@@ -2,6 +2,10 @@
 
 A Chrome extension that brings command palette search to Google Classroom. Hit `Cmd+K` / `Ctrl+K` on any Classroom page and instantly search across all your assignments, materials, and announcements.
 
+# Just Tell Me What to do?
+
+[here](https://github.com/fouadbuilds/google-classroom-search?tab=readme-ov-file#setup)
+
 ## The problem
 
 Google Classroom has no search. Finding an assignment from three weeks ago means scrolling through the entire class stream. Hours Wasted when studying
@@ -80,18 +84,19 @@ Classroom's URL always contains `/u/0/`, `/u/1/` etc. reflecting the active acco
 ### 1. Apps Script
 
 1. Go to [script.google.com](https://script.google.com) and create a new project
-2. Click **Services (+)** → add **Google Classroom API**
-3. Paste the contents of `scripts/appscript.js`
-4. Run `rebuildCache` manually once to warm the cache
-5. **Deploy → New deployment → Web App**
+2. Add a new project (name whatever you like)
+3. Click **Services (+)** → add **Google Classroom API**
+4. Paste the contents of `scripts/appscript.js`
+5. Run `rebuildCache` manually once to warm the cache
+6. **Deploy → New deployment → Web App**
    - Execute as: **Me**
    - Who has access: **Anyone**
-6. Copy the deployment URL
+7. Copy the deployment URL
 
 ### 2. Extension
 
 ```bash
-pnpm install
+pnpm install #or download the file
 ```
 
 Set your Apps Script URL in `src/content/content-script.ts`:
@@ -101,30 +106,30 @@ const APPS_SCRIPT_URL = "your_deployment_url_here";
 ```
 
 ```bash
-pnpm build
+pnpm build #if your using a package manager then do the same in dist folder
 ```
 
 Load `dist/` as an unpacked extension in `chrome://extensions`.
 
 ## Usage
 
-| Input | Result |
-|-------|--------|
-| `berlin wall` | Fuzzy search everything |
-| `> assignment` | All assignments |
-| `> assignment cuba` | Assignments matching "cuba" |
-| `# global` | Everything in Global History |
-| `# global berlin` | Global History items matching "berlin" |
+| Input               | Result                                 |
+| ------------------- | -------------------------------------- |
+| `berlin wall`       | Fuzzy search everything                |
+| `> assignment`      | All assignments                        |
+| `> assignment cuba` | Assignments matching "cuba"            |
+| `# global`          | Everything in Global History           |
+| `# global berlin`   | Global History items matching "berlin" |
 
 ## Limitations
 
 - Only indexes **active** courses — archived classes won't appear
 - Announcement "titles" are the first 80 characters of post text — the Classroom API has no title field for announcements
 
-
 ## Thoughts
 
 The most interesting problems weren't the code — they were the constraints. Being locked out of GCP forced a more creative solution that ended up being simpler and more appropriate for the use case. Apps Script with Classroom Services requires no infrastructure, no billing, no OAuth setup beyond what Google handles automatically.
 
 ## Feedback
+
 Please give Feedback. Check my profile readme to email me
