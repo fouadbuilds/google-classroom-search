@@ -8,6 +8,20 @@ export interface ClassroomItem {
   course: string;
   type: "Assignment" | "Material" | "Announcement" | "Class";
   link: string;
+  postedAt?: number;
+}
+
+function recentFirstComparator(a: ClassroomItem, b: ClassroomItem): number {
+  const ta = a.postedAt ?? 0;
+  const tb = b.postedAt ?? 0;
+  if (tb !== ta) return tb - ta;
+  if (a.title < b.title) return -1;
+  if (a.title > b.title) return 1;
+  return 0;
+}
+
+function sortRecentFirst(items: ClassroomItem[]): ClassroomItem[] {
+  return [...items].sort(recentFirstComparator);
 }
 
 let paletteRoot: HTMLDivElement | null = null;
@@ -282,7 +296,11 @@ async function renderResults(rawQuery: string): Promise<void> {
   const countEl = shadowRoot.getElementById("result-count")!;
 
   const stored = await chrome.storage.local.get("gcs-index");
-  const data: ClassroomItem[] = JSON.parse(stored["gcs-index"] || "[]");
+  const raw: ClassroomItem[] = JSON.parse(stored["gcs-index"] || "[]");
+  const data: ClassroomItem[] = raw.map((item) => ({
+    ...item,
+    postedAt: typeof item.postedAt === "number" ? item.postedAt : 0,
+  }));
 
   if (!data.length) {
     resultsEl.innerHTML = `<div id="status-msg">Fetching your classroom data...</div>`;
@@ -300,13 +318,15 @@ async function renderResults(rawQuery: string): Promise<void> {
 
   const parsed = parseQuery(rawQuery);
   const results = applyQuery(data, parsed);
-  current = results;
 
   if (!rawQuery) {
     // grouped view
     const byType: Record<string, ClassroomItem[]> = {};
     data.forEach((d) => {
       (byType[d.type] = byType[d.type] || []).push(d);
+    });
+    Object.keys(byType).forEach((type) => {
+      byType[type] = sortRecentFirst(byType[type]);
     });
     current = data;
 
@@ -327,8 +347,10 @@ async function renderResults(rawQuery: string): Promise<void> {
     return;
   } else {
     const q = parsed.mode === "fuzzy" ? parsed.query : "";
-    resultsEl.innerHTML = results.map((item) => itemHTML(item, q)).join("");
-    countEl.textContent = `${results.length} result${results.length !== 1 ? "s" : ""}`;
+    const sortedResults = sortRecentFirst(results);
+    current = sortedResults;
+    resultsEl.innerHTML = sortedResults.map((item) => itemHTML(item, q)).join("");
+    countEl.textContent = `${sortedResults.length} result${sortedResults.length !== 1 ? "s" : ""}`;
   }
 
   activeIdx = 0;

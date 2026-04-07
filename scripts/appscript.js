@@ -17,6 +17,11 @@ function doGet(e) {
 
 // ─── Index builder ────────────────────────────────────────────────────────────
 
+function rfc3339ToMs(iso) {
+  if (!iso) return 0;
+  return new Date(iso).getTime();
+}
+
 function buildIndex() {
   const items = [];
 
@@ -47,11 +52,13 @@ function buildIndex() {
           pageToken: cwToken || undefined,
         });
         (cw.courseWork || []).forEach((work) => {
+          const postedAt = rfc3339ToMs(work.creationTime || work.updateTime || null);
           items.push({
             title: work.title,
             type: "Assignment",
             course: name,
             link: work.alternateLink,
+            postedAt: postedAt,
           });
         });
         cwToken = cw.nextPageToken;
@@ -67,11 +74,13 @@ function buildIndex() {
           pageToken: matToken || undefined,
         });
         (mat.courseWorkMaterial || []).forEach((m) => {
+          const postedAt = rfc3339ToMs(m.creationTime || m.updateTime || null);
           items.push({
             title: m.title,
             type: "Material",
             course: name,
             link: m.alternateLink,
+            postedAt: postedAt,
           });
         });
         matToken = mat.nextPageToken;
@@ -88,6 +97,7 @@ function buildIndex() {
           pageToken: annToken || undefined,
         });
         (ann.announcements || []).forEach((a) => {
+          const postedAt = rfc3339ToMs(a.creationTime || a.updateTime || null);
           items.push({
             title: a.text
               ? a.text.substring(0, 80).replace(/\n/g, " ").trim()
@@ -95,12 +105,23 @@ function buildIndex() {
             type: "Announcement",
             course: name,
             link: a.alternateLink,
+            postedAt: postedAt,
           });
         });
         annToken = ann.nextPageToken;
       } while (annToken);
     } catch (e) { /* no announcements */ }
   }
+
+  // sort newest first
+  items.sort(function(a, b) {
+    const ta = a.postedAt || 0;
+    const tb = b.postedAt || 0;
+    if (tb !== ta) return tb - ta;
+    if (a.title < b.title) return -1;
+    if (a.title > b.title) return 1;
+    return 0;
+  });
 
   Logger.log("Built index: " + items.length + " items across " + courses.length + " courses");
   return items;
