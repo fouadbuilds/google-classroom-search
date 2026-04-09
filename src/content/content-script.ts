@@ -1,7 +1,6 @@
 import Fuse from "fuse.js";
 
-const APPS_SCRIPT_URL =
-  "your-appscript-deployment-url";
+const APPS_SCRIPT_URL = "your-appscript-deployment-url";
 
 export interface ClassroomItem {
   title: string;
@@ -12,9 +11,9 @@ export interface ClassroomItem {
 }
 
 function recentFirstComparator(a: ClassroomItem, b: ClassroomItem): number {
-  const ta = a.postedAt ?? 0;
-  const tb = b.postedAt ?? 0;
-  if (tb !== ta) return tb - ta;
+  const timeA = a.postedAt ?? 0;
+  const timeB = b.postedAt ?? 0;
+  if (timeB !== timeA) return timeB - timeA;
   if (a.title < b.title) return -1;
   if (a.title > b.title) return 1;
   return 0;
@@ -27,8 +26,8 @@ function sortRecentFirst(items: ClassroomItem[]): ClassroomItem[] {
 let paletteRoot: HTMLDivElement | null = null;
 let shadowRoot: ShadowRoot | null = null;
 let fuseInstance: Fuse<ClassroomItem> | null = null;
-let activeIdx = 0;
-let current: ClassroomItem[] = [];
+let activeResultIndex = 0;
+let currentResults: ClassroomItem[] = [];
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
@@ -88,31 +87,43 @@ function parseQuery(raw: string): ParsedQuery {
   return { mode: "fuzzy", query: raw };
 }
 
-function applyQuery(data: ClassroomItem[], parsed: ParsedQuery): ClassroomItem[] {
+function applyQuery(
+  data: ClassroomItem[],
+  parsed: ParsedQuery,
+): ClassroomItem[] {
   if (parsed.mode === "type") {
     const map: Record<string, string> = {
-      assignment: "Assignment", assignments: "Assignment",
-      material: "Material", materials: "Material",
-      announcement: "Announcement", announcements: "Announcement",
+      assignment: "Assignment",
+      assignments: "Assignment",
+      material: "Material",
+      materials: "Material",
+      announcement: "Announcement",
+      announcements: "Announcement",
     };
     const target = map[parsed.filter] || parsed.filter;
-    let filtered = data.filter((d) =>
-      d.type.toLowerCase().includes(target.toLowerCase())
+    let filtered = data.filter((item) =>
+      item.type.toLowerCase().includes(target.toLowerCase()),
     );
     if (parsed.subquery) {
-      const f = new Fuse(filtered, { keys: ["title", "course"], threshold: 0.35 });
-      filtered = f.search(parsed.subquery).map((r) => r.item);
+      const searcher = new Fuse(filtered, {
+        keys: ["title", "course"],
+        threshold: 0.35,
+      });
+      filtered = searcher.search(parsed.subquery).map((result) => result.item);
     }
     return filtered;
   }
   if (parsed.mode === "course") {
     const normalized = parsed.filter.replace(/\s+/g, "").toLowerCase();
-    let filtered = data.filter((d) =>
-      d.course.replace(/\s+/g, "").toLowerCase().includes(normalized)
+    let filtered = data.filter((item) =>
+      item.course.replace(/\s+/g, "").toLowerCase().includes(normalized),
     );
     if (parsed.subquery) {
-      const f = new Fuse(filtered, { keys: ["title", "type"], threshold: 0.35 });
-      filtered = f.search(parsed.subquery).map((r) => r.item);
+      const searcher = new Fuse(filtered, {
+        keys: ["title", "type"],
+        threshold: 0.35,
+      });
+      filtered = searcher.search(parsed.subquery).map((result) => result.item);
     }
     return filtered;
   }
@@ -125,7 +136,7 @@ function applyQuery(data: ClassroomItem[], parsed: ParsedQuery): ClassroomItem[]
       minMatchCharLength: 1,
     });
   }
-  return fuseInstance.search(parsed.query).map((r) => r.item);
+  return fuseInstance.search(parsed.query).map((result) => result.item);
 }
 
 // ─── Palette HTML ─────────────────────────────────────────────────────────────
@@ -322,19 +333,19 @@ async function renderResults(rawQuery: string): Promise<void> {
   if (!rawQuery) {
     // grouped view
     const byType: Record<string, ClassroomItem[]> = {};
-    data.forEach((d) => {
-      (byType[d.type] = byType[d.type] || []).push(d);
+    data.forEach((item) => {
+      (byType[item.type] = byType[item.type] || []).push(item);
     });
     Object.keys(byType).forEach((type) => {
       byType[type] = sortRecentFirst(byType[type]);
     });
-    current = data;
+    currentResults = data;
 
     let html = "";
-    (["Assignment", "Material", "Announcement"] as const).forEach((t) => {
-      if (!byType[t]?.length) return;
-      html += `<div class="section-label">${t}s</div>`;
-      byType[t].slice(0, 4).forEach((item) => {
+    (["Assignment", "Material", "Announcement"] as const).forEach((type) => {
+      if (!byType[type]?.length) return;
+      html += `<div class="section-label">${type}s</div>`;
+      byType[type].slice(0, 4).forEach((item) => {
         html += itemHTML(item, "");
       });
     });
@@ -346,14 +357,16 @@ async function renderResults(rawQuery: string): Promise<void> {
     countEl.textContent = "0 results";
     return;
   } else {
-    const q = parsed.mode === "fuzzy" ? parsed.query : "";
+    const highlightQuery = parsed.mode === "fuzzy" ? parsed.query : "";
     const sortedResults = sortRecentFirst(results);
-    current = sortedResults;
-    resultsEl.innerHTML = sortedResults.map((item) => itemHTML(item, q)).join("");
+    currentResults = sortedResults;
+    resultsEl.innerHTML = sortedResults
+      .map((item) => itemHTML(item, highlightQuery))
+      .join("");
     countEl.textContent = `${sortedResults.length} result${sortedResults.length !== 1 ? "s" : ""}`;
   }
 
-  activeIdx = 0;
+  activeResultIndex = 0;
   setActive();
   attachItemListeners();
 }
@@ -373,29 +386,37 @@ function itemHTML(item: ClassroomItem, query: string): string {
 
 function setActive(): void {
   if (!shadowRoot) return;
-  shadowRoot.querySelectorAll(".result-item").forEach((el, i) => {
-    el.classList.toggle("active", i === activeIdx);
-    if (i === activeIdx) el.scrollIntoView({ block: "nearest" });
-  });
+  shadowRoot
+    .querySelectorAll(".result-item")
+    .forEach((resultElement, resultIndex) => {
+      resultElement.classList.toggle(
+        "active",
+        resultIndex === activeResultIndex,
+      );
+      if (resultIndex === activeResultIndex)
+        resultElement.scrollIntoView({ block: "nearest" });
+    });
 }
 
 function attachItemListeners(): void {
   if (!shadowRoot) return;
-  shadowRoot.querySelectorAll<HTMLElement>(".result-item").forEach((el, i) => {
-    el.addEventListener("mouseenter", () => {
-      activeIdx = i;
-      setActive();
+  shadowRoot
+    .querySelectorAll<HTMLElement>(".result-item")
+    .forEach((resultElement, resultIndex) => {
+      resultElement.addEventListener("mouseenter", () => {
+        activeResultIndex = resultIndex;
+        setActive();
+      });
+      resultElement.addEventListener("click", () => {
+        openActive();
+      });
     });
-    el.addEventListener("click", () => {
-      openActive();
-    });
-  });
 }
 
 function openActive(): void {
   if (!shadowRoot) return;
   const items = shadowRoot.querySelectorAll<HTMLElement>(".result-item");
-  const target = items[activeIdx];
+  const target = items[activeResultIndex];
   if (target?.dataset.link) {
     // derive account index from current URL (/u/0/, /u/1/, etc.)
     const match = window.location.href.match(/\/u\/(\d+)\//);
@@ -417,15 +438,17 @@ function openPalette(): void {
   shadowRoot.innerHTML = getPaletteHTML();
   document.body.appendChild(paletteRoot);
 
-  shadowRoot.getElementById("overlay")!.addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).id === "overlay") closePalette();
-  });
+  shadowRoot
+    .getElementById("overlay")!
+    .addEventListener("click", (clickEvent) => {
+      if ((clickEvent.target as HTMLElement).id === "overlay") closePalette();
+    });
 
   const input = shadowRoot.getElementById("search-input") as HTMLInputElement;
   input.focus();
-  input.addEventListener("input", (e) => {
+  input.addEventListener("input", (event) => {
     fuseInstance = null;
-    renderResults((e.target as HTMLInputElement).value.trim());
+    renderResults((event.target as HTMLInputElement).value.trim());
   });
 
   // refresh button
@@ -443,18 +466,21 @@ function openPalette(): void {
   });
 
   shadowRoot.addEventListener("keydown", (e: Event) => {
-    const ke = e as KeyboardEvent;
-    if (ke.key === "ArrowDown") {
-      ke.preventDefault();
-      activeIdx = Math.min(activeIdx + 1, current.length - 1);
+    const keyboardEvent = e as KeyboardEvent;
+    if (keyboardEvent.key === "ArrowDown") {
+      keyboardEvent.preventDefault();
+      activeResultIndex = Math.min(
+        activeResultIndex + 1,
+        currentResults.length - 1,
+      );
       setActive();
     }
-    if (ke.key === "ArrowUp") {
-      ke.preventDefault();
-      activeIdx = Math.max(activeIdx - 1, 0);
+    if (keyboardEvent.key === "ArrowUp") {
+      keyboardEvent.preventDefault();
+      activeResultIndex = Math.max(activeResultIndex - 1, 0);
       setActive();
     }
-    if (ke.key === "Enter") {
+    if (keyboardEvent.key === "Enter") {
       openActive();
     }
   });
@@ -467,8 +493,8 @@ function closePalette(): void {
   paletteRoot = null;
   shadowRoot = null;
   fuseInstance = null;
-  current = [];
-  activeIdx = 0;
+  currentResults = [];
+  activeResultIndex = 0;
 }
 
 // ─── Toast ─────────────────────────────────────────────────────────────────────
@@ -544,7 +570,9 @@ function showToast(): void {
 
   const dismiss = () => {
     toast.classList.add("gcs-hiding");
-    toast.addEventListener("animationend", () => toast.remove(), { once: true });
+    toast.addEventListener("animationend", () => toast.remove(), {
+      once: true,
+    });
   };
 
   toast.querySelector(".gcs-dismiss")!.addEventListener("click", dismiss);
@@ -556,16 +584,16 @@ function showToast(): void {
 
 document.addEventListener(
   "keydown",
-  (e: KeyboardEvent) => {
+  (keyboardEvent: KeyboardEvent) => {
     const isMac = navigator.platform.toUpperCase().includes("MAC");
-    const mod = isMac ? e.metaKey : e.ctrlKey;
-    if (mod && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      e.stopPropagation();
+    const mod = isMac ? keyboardEvent.metaKey : keyboardEvent.ctrlKey;
+    if (mod && keyboardEvent.key.toLowerCase() === "k") {
+      keyboardEvent.preventDefault();
+      keyboardEvent.stopPropagation();
       paletteRoot ? closePalette() : openPalette();
       return;
     }
-    if (e.key === "Escape" && paletteRoot) closePalette();
+    if (keyboardEvent.key === "Escape" && paletteRoot) closePalette();
   },
   true,
 );
@@ -573,7 +601,8 @@ document.addEventListener(
 // ─── Messages ─────────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "ACTIVATE_SEARCH") paletteRoot ? closePalette() : openPalette();
+  if (message.type === "ACTIVATE_SEARCH")
+    paletteRoot ? closePalette() : openPalette();
   if (message.type === "FETCH_INDEX") fetchAndStoreIndex();
   if (message.type === "SHOW_TOAST") showToast();
 });
